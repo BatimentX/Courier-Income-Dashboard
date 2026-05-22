@@ -240,7 +240,7 @@ export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job
     }
   }
 
-  const query = `${options.query} near ${options.location || 'Baltimore, MD 21237'}`;
+  const query = `${options.query} near ${options.location || 'Laurel, MD 20708'}`;
   const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&page=${options.page || 1}&num_pages=1`;
 
   try {

@@ -26,7 +26,7 @@ export default function DiscoverJobsPage() {
   const [apiKey, setApiKey] = useState('');
   const [showKeyPanel, setShowKeyPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState('Medical Courier');
-  const [locationQuery, setLocationQuery] = useState('Baltimore, MD 21237');
+  const [locationQuery, setLocationQuery] = useState('Laurel, MD 20708');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Job[]>([]);
   const [importedIds, setImportedIds] = useState<string[]>([]);
@@ -46,7 +46,7 @@ export default function DiscoverJobsPage() {
     async function loadInitial() {
       setLoading(true);
       try {
-        const initial = await searchJobs({ query: 'Medical Courier', location: 'Baltimore, MD 21237' });
+        const initial = await searchJobs({ query: 'Medical Courier', location: 'Laurel, MD 20708' });
         setResults(initial);
       } catch (err) {
         console.error(err);
@@ -196,7 +196,7 @@ export default function DiscoverJobsPage() {
               Discover Courier Routes
             </h1>
             <p className="text-sm text-slate-400 max-w-xl">
-              Scan active job posts near Zip 21237. Instantly import roles to auto-score compatibility based on your exact vehicle, pay, and stability settings.
+              Scan active job posts near Laurel, MD 20708. Instantly import roles to auto-score compatibility based on your exact vehicle, pay, and stability settings.
             </p>
           </div>
 
