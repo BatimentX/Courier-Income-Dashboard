@@ -423,22 +423,79 @@ const setLocalStorageData = <T>(key: string, value: T): void => {
 export const db = {
   // Jobs
   async getJobs(): Promise<Job[]> {
+    let jobs: Job[] = [];
     if (supabase) {
       const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-      if (!error && data) return data as Job[];
-      console.warn('Supabase getJobs failed, falling back to LocalStorage', error);
+      if (!error && data) {
+        jobs = data as Job[];
+      } else {
+        console.warn('Supabase getJobs failed, falling back to LocalStorage', error);
+        jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
+      }
+    } else {
+      jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
     }
-    return getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
+    
+    // Filter out scam/spam/redirect job boards (like localjobmatcher.com and lensa.com) globally from dashboard
+    return jobs.filter(job => {
+      const link = (job.application_link || '').toLowerCase();
+      const comp = (job.company_name || '').toLowerCase();
+      const title = (job.job_title || '').toLowerCase();
+      const notes = (job.notes || '').toLowerCase();
+      
+      const isSpam = (
+        link.includes('localjobmatcher.com') ||
+        link.includes('lensa.com') ||
+        link.includes('jobmatcher') ||
+        comp.includes('lensa') ||
+        comp.includes('localjobmatcher') ||
+        comp.includes('local job matcher') ||
+        title.includes('localjobmatcher') ||
+        title.includes('lensa') ||
+        notes.includes('localjobmatcher.com') ||
+        notes.includes('lensa.com')
+      );
+      return !isSpam;
+    });
   },
 
   async getJobById(id: string): Promise<Job | null> {
+    let job: Job | null = null;
     if (supabase) {
       const { data, error } = await supabase.from('jobs').select('*').eq('id', id).single();
-      if (!error && data) return data as Job;
-      console.warn('Supabase getJobById failed, falling back to LocalStorage', error);
+      if (!error && data) {
+        job = data as Job;
+      } else {
+        console.warn('Supabase getJobById failed, falling back to LocalStorage', error);
+        const jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
+        job = jobs.find(j => j.id === id) || null;
+      }
+    } else {
+      const jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
+      job = jobs.find(j => j.id === id) || null;
     }
-    const jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
-    return jobs.find(j => j.id === id) || null;
+
+    if (job) {
+      const link = (job.application_link || '').toLowerCase();
+      const comp = (job.company_name || '').toLowerCase();
+      const title = (job.job_title || '').toLowerCase();
+      const notes = (job.notes || '').toLowerCase();
+      
+      const isSpam = (
+        link.includes('localjobmatcher.com') ||
+        link.includes('lensa.com') ||
+        link.includes('jobmatcher') ||
+        comp.includes('lensa') ||
+        comp.includes('localjobmatcher') ||
+        comp.includes('local job matcher') ||
+        title.includes('localjobmatcher') ||
+        title.includes('lensa') ||
+        notes.includes('localjobmatcher.com') ||
+        notes.includes('lensa.com')
+      );
+      if (isSpam) return null;
+    }
+    return job;
   },
 
   async addJob(job: Omit<Job, 'id'>): Promise<Job> {

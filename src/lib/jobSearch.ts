@@ -216,6 +216,42 @@ export function mapApiJobToInternalJob(apiJob: any): Job {
   };
 }
 
+/**
+ * Helper to identify scam or redirect-based aggregator job posts (like localjobmatcher.com or lensa.com).
+ * Filters them out fully from display to protect courier safety and data privacy.
+ */
+export function isSpamJob(job: Job): boolean {
+  const BLOCKED_DOMAINS = ['localjobmatcher.com', 'lensa.com', 'jobmatcher'];
+  const appLink = (job.application_link || '').toLowerCase();
+  const company = (job.company_name || '').toLowerCase();
+  const title = (job.job_title || '').toLowerCase();
+  const notes = (job.notes || '').toLowerCase();
+
+  // 1. Check if application link contains blocked domains
+  if (BLOCKED_DOMAINS.some(domain => appLink.includes(domain))) {
+    return true;
+  }
+
+  // 2. Check if company name matches scam/redirect boards
+  if (
+    company.includes('lensa') ||
+    company.includes('local job matcher') ||
+    company.includes('localjobmatcher')
+  ) {
+    return true;
+  }
+
+  // 3. Check if description/notes contain standard redirect indicators or specific URLs
+  if (
+    notes.includes('localjobmatcher.com') ||
+    notes.includes('lensa.com')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job[]> {
   const apiKey = getRapidApiKey();
   if (!apiKey) {
@@ -232,7 +268,8 @@ export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job
         const parsed: CachedData = JSON.parse(cached);
         if (Date.now() - parsed.timestamp < CACHE_TTL) {
           console.log('Returning JSearch results from local cache.');
-          return parsed.results;
+          // Filter out cached scam/spam jobs in case the cache was contaminated historically
+          return parsed.results.filter(job => !isSpamJob(job));
         }
       }
     } catch (e) {
@@ -259,15 +296,10 @@ export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job
     const body = await response.json();
     const apiJobs = body.data || [];
     
-    // Filter out jobs from undesirable redirect domains (e.g. localjobmatcher.com)
+    // Filter out jobs from undesirable redirect domains (e.g. localjobmatcher.com and lensa.com)
     const mappedJobs = apiJobs
       .map(mapApiJobToInternalJob)
-      .filter((job: Job) => {
-        if (job.application_link && job.application_link.toLowerCase().includes('localjobmatcher.com')) {
-          return false;
-        }
-        return true;
-      });
+      .filter((job: Job) => !isSpamJob(job));
 
     // Save to cache
     if (typeof window !== 'undefined') {
@@ -288,6 +320,7 @@ export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job
     return getMockResults(options.query);
   }
 }
+
 
 // High-fidelity fallback/mock engine in case user does not have key
 function getMockResults(query: string): Job[] {
