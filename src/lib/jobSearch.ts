@@ -258,7 +258,16 @@ export async function searchJobs(options: DiscoverJobSearchOptions): Promise<Job
 
     const body = await response.json();
     const apiJobs = body.data || [];
-    const mappedJobs = apiJobs.map(mapApiJobToInternalJob);
+    
+    // Filter out jobs from undesirable redirect domains (e.g. localjobmatcher.com)
+    const mappedJobs = apiJobs
+      .map(mapApiJobToInternalJob)
+      .filter((job: Job) => {
+        if (job.application_link && job.application_link.toLowerCase().includes('localjobmatcher.com')) {
+          return false;
+        }
+        return true;
+      });
 
     // Save to cache
     if (typeof window !== 'undefined') {
