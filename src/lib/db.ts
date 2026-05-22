@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Job, Certification, Application } from '../types';
+import { Job, Certification, Application, UserProfile } from '../types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -74,6 +74,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Mid-Atlantic Specimen Transport',
     location: 'Baltimore, MD (ZIP 21237)',
     distance_from_21237: 2.5,
+    application_link: 'https://www.indeed.com/jobs?q=medical+courier&l=Baltimore+MD+21237',
     pay_min: 18.50,
     pay_max: 22.50,
     pay_type: 'hourly',
@@ -100,6 +101,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Long-Term Care Pharmacy Services',
     location: 'Columbia, MD',
     distance_from_21237: 22.1,
+    application_link: 'https://www.indeed.com/jobs?q=pharmacy+courier&l=Columbia+MD',
     pay_min: 20.00,
     pay_max: 24.00,
     pay_type: 'hourly',
@@ -126,6 +128,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Regional Specimen Logistics',
     location: 'Towson, MD',
     distance_from_21237: 12.8,
+    application_link: 'https://www.indeed.com/jobs?q=lab+specimen+courier&l=Towson+MD',
     pay_min: 19.00,
     pay_max: 23.00,
     pay_type: 'hourly',
@@ -152,6 +155,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Apex Courier Logistics',
     location: 'Hanover, MD (Near BWI)',
     distance_from_21237: 17.5,
+    application_link: 'https://hiring.amazon.com/',
     pay_min: 20.50,
     pay_max: 22.00,
     pay_type: 'hourly',
@@ -178,6 +182,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Baltimore Ground Delivery LLC',
     location: 'Halethorpe, MD',
     distance_from_21237: 15.2,
+    application_link: 'https://careers.fedex.com/',
     pay_min: 160.00,
     pay_max: 200.00,
     pay_type: 'daily',
@@ -204,6 +209,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'United Parcel Service (UPS)',
     location: 'Baltimore Downtown Hub',
     distance_from_21237: 8.4,
+    application_link: 'https://www.jobs-ups.com/',
     pay_min: 23.00,
     pay_max: 42.00,
     pay_type: 'hourly',
@@ -230,6 +236,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'DHL Express Regional',
     location: 'Glen Burnie, MD',
     distance_from_21237: 16.3,
+    application_link: 'https://careers.dhl.com/',
     pay_min: 21.50,
     pay_max: 25.50,
     pay_type: 'hourly',
@@ -256,6 +263,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Mid-Atlantic Parcel Express',
     location: 'Elkridge, MD',
     distance_from_21237: 19.8,
+    application_link: 'https://ontrac.com/provide-delivery-services/',
     pay_min: 800.00,
     pay_max: 1200.00,
     pay_type: 'weekly',
@@ -282,6 +290,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'National Auto Parts Distributors',
     location: 'Rosedale, MD',
     distance_from_21237: 1.1,
+    application_link: 'https://advanceauto.wd5.myworkdayjobs.com/AdvanceExternalCareers/',
     pay_min: 15.00,
     pay_max: 16.50,
     pay_type: 'hourly',
@@ -308,6 +317,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Charm City Courier & Messenger',
     location: 'Baltimore Downtown',
     distance_from_21237: 6.8,
+    application_link: 'https://www.indeed.com/jobs?q=local+courier+messenger&l=Baltimore+MD',
     pay_min: 180.00,
     pay_max: 250.00,
     pay_type: 'daily',
@@ -334,6 +344,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Compassionate Medical Logistics',
     location: 'Linthicum, MD',
     distance_from_21237: 17.1,
+    application_link: 'https://www.indeed.com/jobs?q=DME+delivery+driver&l=Linthicum+MD',
     pay_min: 21.00,
     pay_max: 26.00,
     pay_type: 'hourly',
@@ -360,6 +371,7 @@ const DEFAULT_JOBS: Job[] = [
     company_name: 'Baltimore Office & Industrial Supply',
     location: 'Laurel, MD',
     distance_from_21237: 25.8,
+    application_link: 'https://www.indeed.com/jobs?q=box+truck+driver+non+CDL&l=Laurel+MD',
     pay_min: 22.00,
     pay_max: 27.00,
     pay_type: 'hourly',
@@ -567,12 +579,64 @@ export const db = {
     setLocalStorageData('cc_applications', filteredApps);
   },
 
+  // User Profile
+  async getProfile(): Promise<UserProfile | null> {
+    if (supabase) {
+      const { data, error } = await supabase.from('profiles').select('*').single();
+      if (!error && data) return data as UserProfile;
+      console.warn('Supabase getProfile failed, falling back to LocalStorage', error);
+    }
+    const defaultProfile: UserProfile = {
+      id: 'user-profile',
+      full_name: '',
+      email: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+      summary: '',
+      years_driving: 0,
+      has_clean_mvr: true,
+      has_own_vehicle: false,
+      vehicle_description: '',
+      certifications_held: [],
+      skills: [],
+      work_history: [],
+      education: []
+    };
+    return getLocalStorageData<UserProfile>('cc_profile', defaultProfile);
+  },
+
+  async saveProfile(profile: UserProfile): Promise<UserProfile> {
+    if (supabase) {
+      const { data, error } = await supabase.from('profiles').upsert([profile]).select().single();
+      if (!error && data) return data as UserProfile;
+      console.warn('Supabase saveProfile failed, falling back to LocalStorage', error);
+    }
+    setLocalStorageData('cc_profile', profile);
+    return profile;
+  },
+
+  async updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
+    const profile = await this.getProfile();
+    const updatedProfile = { ...profile, ...updates } as UserProfile;
+    if (supabase) {
+      const { data, error } = await supabase.from('profiles').update(updates).eq('id', profile?.id || 'user-profile').select().single();
+      if (!error && data) return data as UserProfile;
+      console.warn('Supabase updateProfile failed, falling back to LocalStorage', error);
+    }
+    setLocalStorageData('cc_profile', updatedProfile);
+    return updatedProfile;
+  },
+
   // Reset database back to default seed data
   async resetToSeeds(): Promise<void> {
     if (typeof window !== 'undefined') {
       localStorage.setItem('cc_jobs', JSON.stringify(DEFAULT_JOBS));
       localStorage.setItem('cc_certifications', JSON.stringify(DEFAULT_CERTIFICATIONS));
       localStorage.setItem('cc_applications', JSON.stringify([]));
+      localStorage.removeItem('cc_profile');
     }
   }
 };

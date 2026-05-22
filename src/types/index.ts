@@ -93,3 +93,41 @@ export interface ComboRecommendation {
   bestScheduleFit: string;
   recommendationRating: number; // 1-10
 }
+
+export interface WorkExperience {
+  company: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  description: string;
+  is_delivery_related: boolean;
+}
+
+export interface EducationEntry {
+  institution: string;
+  degree: string;
+  year: string;
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  summary: string;              // Professional summary
+  years_driving: number;
+  has_clean_mvr: boolean;
+  has_own_vehicle: boolean;
+  vehicle_description?: string;
+  certifications_held: string[];
+  skills: string[];
+  work_history: WorkExperience[];
+  education: EducationEntry[];
+  resume_raw_text?: string;     // Parsed text from uploaded resume
+  updated_at?: string;
+}
+

@@ -12,7 +12,9 @@ import {
   Briefcase, 
   ListTodo,
   PlusCircle,
-  MapPin
+  MapPin,
+  Search,
+  User
 } from 'lucide-react';
 
 interface NavItem {
@@ -23,12 +25,22 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Discover', href: '/discover', icon: Search },
   { name: 'Compare', href: '/comparison', icon: TableProperties },
   { name: 'Calculator', href: '/calculator', icon: Calculator },
   { name: 'Combo', href: '/optimizer', icon: Zap },
   { name: 'Certs', href: '/certifications', icon: Award },
   { name: 'Tracker', href: '/applications', icon: Briefcase },
-  { name: 'Plan', href: '/action-plan', icon: ListTodo }
+  { name: 'Plan', href: '/action-plan', icon: ListTodo },
+  { name: 'Profile', href: '/profile', icon: User }
+];
+
+const mobileNavItems: NavItem[] = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Discover', href: '/discover', icon: Search },
+  { name: 'Compare', href: '/comparison', icon: TableProperties },
+  { name: 'Tracker', href: '/applications', icon: Briefcase },
+  { name: 'Profile', href: '/profile', icon: User }
 ];
 
 export default function Navigation({ children }: { children: React.ReactNode }) {
@@ -136,7 +148,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[rgba(38,56,95,0.4)] bg-[#090d16]/90 backdrop-blur-xl px-2 py-1 flex items-center justify-around">
-        {navItems.map((item) => {
+        {mobileNavItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
