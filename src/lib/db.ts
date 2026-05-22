@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Job, Certification, Application, UserProfile } from '../types';
+import { isSpamJob } from './jobSearch';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -436,27 +437,8 @@ export const db = {
       jobs = getLocalStorageData<Job[]>('cc_jobs', DEFAULT_JOBS);
     }
     
-    // Filter out scam/spam/redirect job boards (like localjobmatcher.com and lensa.com) globally from dashboard
-    return jobs.filter(job => {
-      const link = (job.application_link || '').toLowerCase();
-      const comp = (job.company_name || '').toLowerCase();
-      const title = (job.job_title || '').toLowerCase();
-      const notes = (job.notes || '').toLowerCase();
-      
-      const isSpam = (
-        link.includes('localjobmatcher.com') ||
-        link.includes('lensa.com') ||
-        link.includes('jobmatcher') ||
-        comp.includes('lensa') ||
-        comp.includes('localjobmatcher') ||
-        comp.includes('local job matcher') ||
-        title.includes('localjobmatcher') ||
-        title.includes('lensa') ||
-        notes.includes('localjobmatcher.com') ||
-        notes.includes('lensa.com')
-      );
-      return !isSpam;
-    });
+    // Filter out scam/spam/redirect job boards globally from dashboard using unified helper
+    return jobs.filter(job => !isSpamJob(job));
   },
 
   async getJobById(id: string): Promise<Job | null> {
@@ -475,25 +457,8 @@ export const db = {
       job = jobs.find(j => j.id === id) || null;
     }
 
-    if (job) {
-      const link = (job.application_link || '').toLowerCase();
-      const comp = (job.company_name || '').toLowerCase();
-      const title = (job.job_title || '').toLowerCase();
-      const notes = (job.notes || '').toLowerCase();
-      
-      const isSpam = (
-        link.includes('localjobmatcher.com') ||
-        link.includes('lensa.com') ||
-        link.includes('jobmatcher') ||
-        comp.includes('lensa') ||
-        comp.includes('localjobmatcher') ||
-        comp.includes('local job matcher') ||
-        title.includes('localjobmatcher') ||
-        title.includes('lensa') ||
-        notes.includes('localjobmatcher.com') ||
-        notes.includes('lensa.com')
-      );
-      if (isSpam) return null;
+    if (job && isSpamJob(job)) {
+      return null;
     }
     return job;
   },

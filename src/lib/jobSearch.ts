@@ -25,13 +25,184 @@ export function saveRapidApiKey(key: string): void {
   localStorage.setItem('cc_rapidapi_key', key);
 }
 
+// Helper to heal spam redirect application links by mapping them to direct career pages or clean searches
+export function healSpamApplyLink(apiJob: any): string {
+  const company = (apiJob.employer_name || apiJob.job_publisher || '').toLowerCase();
+  const title = (apiJob.job_title || '').toLowerCase();
+  const description = (apiJob.job_description || '').toLowerCase();
+
+  // 1. Direct employer mapping for major carriers and diagnostics companies
+  if (company.includes('fedex') || description.includes('fedex')) {
+    return 'https://careers.fedex.com/';
+  }
+  if (company.includes('amazon') || description.includes('amazon dsp') || title.includes('dsp')) {
+    return 'https://hiring.amazon.com/';
+  }
+  if (company.includes('ups') || title.includes('united parcel service') || title.includes('ups driver')) {
+    return 'https://www.jobs-ups.com/';
+  }
+  if (company.includes('dhl') || description.includes('dhl express')) {
+    return 'https://careers.dhl.com/';
+  }
+  if (company.includes('quest diagnostics') || company.includes('quest')) {
+    return 'https://careers.questdiagnostics.com/';
+  }
+  if (company.includes('uspack') || company.includes('us pack')) {
+    return 'https://www.gouspack.com/drive-with-us/';
+  }
+  if (company.includes('omnicare') || company.includes('cvs')) {
+    return 'https://jobs.cvshealth.com/';
+  }
+  if (company.includes('ontrac')) {
+    return 'https://ontrac.com/provide-delivery-services/';
+  }
+  if (company.includes('napa')) {
+    return 'https://jobs.genpt.com/';
+  }
+  if (company.includes('advance auto')) {
+    return 'https://advanceauto.wd5.myworkdayjobs.com/AdvanceExternalCareers/';
+  }
+
+  // 2. Fallback: Heal by constructing a highly-targeted clean Indeed search link for the specific job
+  const jobTitle = apiJob.job_title || 'Courier Driver';
+  const jobCity = apiJob.job_city || 'Laurel';
+  const jobState = apiJob.job_state || 'MD';
+  const location = `${jobCity}, ${jobState}`;
+  
+  return `https://www.indeed.com/jobs?q=${encodeURIComponent(jobTitle)}&l=${encodeURIComponent(location)}`;
+}
+
+// Helper to resolve the best non-scam application link from JSearch options
+export function resolveBestApplicationLink(apiJob: any): string {
+  const BLOCKED_DOMAINS = [
+    'localjobmatcher.com',
+    'lensa.com',
+    'royaljobfinder.com',
+    'jobmatcher',
+    'jobseeker',
+    'jobrapido',
+    'jobs2careers',
+    'find-jobs',
+    'nexxt',
+    'talent.com',
+    'jooble',
+    'clickajob',
+    'adzuna',
+    'woofound',
+    'juju',
+    'careerjet',
+    'salary.com',
+    'zipdo',
+    'careerarc'
+  ];
+  
+  const BLOCKED_PUBLISHERS = [
+    'lensa',
+    'local job matcher',
+    'localjobmatcher',
+    'royal job finder',
+    'royaljobfinder',
+    'jobseeker',
+    'jobrapido',
+    'jobs2careers',
+    'find-jobs',
+    'nexxt',
+    'talent.com',
+    'jooble',
+    'clickajob',
+    'adzuna',
+    'careerjet',
+    'salary.com',
+    'zipdo'
+  ];
+
+  // Look at both apply_options (JSearch API returned key) and job_apply_options
+  const options = apiJob.apply_options || apiJob.job_apply_options || [];
+
+  // 1. Try to scan alternative application options to find a clean direct one
+  if (Array.isArray(options) && options.length > 0) {
+    const validOptions = options.filter((opt: any) => {
+      if (!opt.apply_link) return false;
+      const link = opt.apply_link.toLowerCase();
+      const publisher = (opt.publisher || '').toLowerCase();
+      
+      const isSpam = (
+        BLOCKED_DOMAINS.some(domain => link.includes(domain)) ||
+        BLOCKED_PUBLISHERS.some(pub => publisher.includes(pub))
+      );
+      return !isSpam;
+    });
+
+    if (validOptions.length > 0) {
+      // Prioritize direct links first, otherwise take the first valid non-spam link
+      const directLink = validOptions.find((opt: any) => opt.is_direct);
+      if (directLink) return directLink.apply_link;
+      return validOptions[0].apply_link;
+    }
+  }
+
+  // 2. Check if primary link is clean
+  const primaryLink = apiJob.job_apply_link || '';
+  const primaryLinkLower = primaryLink.toLowerCase();
+  const publisherLower = (apiJob.job_publisher || apiJob.employer_name || '').toLowerCase();
+  
+  const primaryIsSpam = (
+    BLOCKED_DOMAINS.some(domain => primaryLinkLower.includes(domain)) ||
+    BLOCKED_PUBLISHERS.some(pub => publisherLower.includes(pub))
+  );
+
+  if (primaryIsSpam) {
+    // Dynamically HEAL the application link instead of discarding a real job post completely!
+    return healSpamApplyLink(apiJob);
+  }
+
+  return primaryLink || 'https://www.indeed.com';
+}
+
 // Maps JSearch response items to our unified Job schema
 export function mapApiJobToInternalJob(apiJob: any): Job {
   const title = apiJob.job_title || 'Courier/Delivery Driver';
-  const company = apiJob.job_publisher || apiJob.employer_name || 'Independent Contractor';
   const location = `${apiJob.job_city || 'Baltimore'}, ${apiJob.job_state || 'MD'}`;
   const jobDescription = (apiJob.job_description || '').toLowerCase();
   
+  // Clean company name from spam aggregator branding and fetch the real employer
+  let company = apiJob.employer_name || apiJob.job_publisher || 'Independent Contractor';
+  
+  const BLOCKED_PUBLISHERS = [
+    'lensa',
+    'local job matcher',
+    'localjobmatcher',
+    'royal job finder',
+    'royaljobfinder',
+    'jobseeker',
+    'jobrapido',
+    'jobs2careers',
+    'find-jobs',
+    'nexxt',
+    'talent.com',
+    'jooble',
+    'clickajob',
+    'adzuna',
+    'careerjet',
+    'salary.com',
+    'zipdo'
+  ];
+  
+  const companyLower = company.toLowerCase();
+  if (BLOCKED_PUBLISHERS.some(pub => companyLower.includes(pub))) {
+    if (apiJob.employer_name && !BLOCKED_PUBLISHERS.some(pub => apiJob.employer_name.toLowerCase().includes(pub))) {
+      company = apiJob.employer_name;
+    } else {
+      let cleaned = company;
+      BLOCKED_PUBLISHERS.forEach(pub => {
+        const regex = new RegExp(`\\s*-\\s*${pub}|\\s*by\\s*${pub}|\\s*at\\s*${pub}|${pub}\\s*jobs|${pub}`, 'gi');
+        cleaned = cleaned.replace(regex, '');
+      });
+      cleaned = cleaned.replace(/^\s*-\s*|\s*-\s*$/g, '').trim();
+      company = cleaned || 'Independent Courier Contractor';
+    }
+  }
+
   // Parse pay
   let payMin = 18.00;
   let payMax = 23.00;
@@ -106,11 +277,12 @@ export function mapApiJobToInternalJob(apiJob: any): Job {
   if (jobType === '1099') stability = 5;
 
   // Medical/Specimen checks
+  const companyLowerClean = company.toLowerCase();
   const isMedical = jobDescription.includes('medical') || jobDescription.includes('specimen') || jobDescription.includes('blood') || jobDescription.includes('lab') || title.toLowerCase().includes('medical');
   const isPharmacy = jobDescription.includes('pharmacy') || jobDescription.includes('prescription') || jobDescription.includes('medication');
-  const isAmazon = company.toLowerCase().includes('amazon') || title.toLowerCase().includes('dsp') || jobDescription.includes('amazon dsp');
-  const isFedex = company.toLowerCase().includes('fedex') || jobDescription.includes('fedex ground');
-  const isUps = company.toLowerCase().includes('ups') || title.toLowerCase().includes('united parcel service');
+  const isAmazon = companyLowerClean.includes('amazon') || title.toLowerCase().includes('dsp') || jobDescription.includes('amazon dsp');
+  const isFedex = companyLowerClean.includes('fedex') || jobDescription.includes('fedex ground');
+  const isUps = companyLowerClean.includes('ups') || title.toLowerCase().includes('united parcel service');
   const isAutoParts = jobDescription.includes('auto parts') || jobDescription.includes('napa') || jobDescription.includes('advance auto') || jobDescription.includes('oreilly');
 
   const requiredCerts: string[] = [];
@@ -172,7 +344,6 @@ export function mapApiJobToInternalJob(apiJob: any): Job {
   else incomePotential = 3;
 
   // Calculate generic distance from Baltimore / 21237
-  // Seed a random but realistic number for mock consistency
   let distance = 10;
   if (apiJob.job_city) {
     const city = apiJob.job_city.toLowerCase();
@@ -189,7 +360,7 @@ export function mapApiJobToInternalJob(apiJob: any): Job {
     company_name: company,
     location,
     distance_from_21237: distance,
-    application_link: apiJob.job_apply_link || 'https://www.indeed.com',
+    application_link: resolveBestApplicationLink(apiJob),
     pay_min: payMin,
     pay_max: payMax,
     pay_type: payType,
@@ -221,31 +392,76 @@ export function mapApiJobToInternalJob(apiJob: any): Job {
  * Filters them out fully from display to protect courier safety and data privacy.
  */
 export function isSpamJob(job: Job): boolean {
-  const BLOCKED_DOMAINS = ['localjobmatcher.com', 'lensa.com', 'jobmatcher'];
+  const BLOCKED_DOMAINS = [
+    'localjobmatcher.com',
+    'lensa.com',
+    'royaljobfinder.com',
+    'jobmatcher',
+    'jobseeker',
+    'jobrapido',
+    'jobs2careers',
+    'find-jobs',
+    'nexxt',
+    'talent.com',
+    'jooble',
+    'clickajob',
+    'adzuna',
+    'woofound',
+    'juju',
+    'careerjet',
+    'salary.com',
+    'zipdo',
+    'careerarc'
+  ];
+  
+  const BLOCKED_PUBLISHERS = [
+    'lensa',
+    'local job matcher',
+    'localjobmatcher',
+    'royal job finder',
+    'royaljobfinder',
+    'jobseeker',
+    'jobrapido',
+    'jobs2careers',
+    'find-jobs',
+    'nexxt',
+    'talent.com',
+    'jooble',
+    'clickajob',
+    'adzuna',
+    'careerjet',
+    'salary.com',
+    'zipdo'
+  ];
+
   const appLink = (job.application_link || '').toLowerCase();
   const company = (job.company_name || '').toLowerCase();
   const title = (job.job_title || '').toLowerCase();
   const notes = (job.notes || '').toLowerCase();
 
-  // 1. Check if application link contains blocked domains
+  // 1. Reject if there is no valid application link
+  if (!appLink || (appLink === 'https://www.indeed.com' && (company.includes('royal') || company.includes('finder')))) {
+    // If it's a known spam company but fell back to indeed, block it
+    return true;
+  }
+
+  // 2. Check if application link contains blocked domains
   if (BLOCKED_DOMAINS.some(domain => appLink.includes(domain))) {
     return true;
   }
 
-  // 2. Check if company name matches scam/redirect boards
-  if (
-    company.includes('lensa') ||
-    company.includes('local job matcher') ||
-    company.includes('localjobmatcher')
-  ) {
+  // 3. Check if company name matches scam/redirect boards
+  if (BLOCKED_PUBLISHERS.some(pub => company.includes(pub))) {
     return true;
   }
 
-  // 3. Check if description/notes contain standard redirect indicators or specific URLs
-  if (
-    notes.includes('localjobmatcher.com') ||
-    notes.includes('lensa.com')
-  ) {
+  // 4. Check if description/notes contain standard redirect indicators or specific URLs
+  if (BLOCKED_DOMAINS.some(domain => notes.includes(domain))) {
+    return true;
+  }
+
+  // 5. Check if title contains blocked publisher terms
+  if (BLOCKED_PUBLISHERS.some(pub => title.includes(pub))) {
     return true;
   }
 
